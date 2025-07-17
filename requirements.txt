@@ -5,7 +5,7 @@ Jinja2
 Werkzeug
 numpy
 pandas
-sklearn
+scikit-learn
 dnspython
 pymongo
 catboost

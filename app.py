@@ -8,7 +8,7 @@ import os, sys
 import json
 from heart_stroke.config.configuration import Configuartion
 from heart_stroke.constant import CONFIG_DIR, get_current_time_stamp
-from heart_stroke.pipeline.pipeline import Pipeline
+from heart_stroke.pipeline.training_pipeline import Pipeline
 from heart_stroke.entity.heart_stroke_predictor import predictor, HeartStrokeData
 from flask import send_file, abort, render_template
 
