@@ -31,17 +31,17 @@
             <div class="mb-3">
                 <label class="form-label">Patient's Age</label>
                 <input class="form-control" type="number" name="age"
-                    placeholder="Enter Patient's age" min='0' max='100'/>
+                    placeholder="Enter Patient's age" min='0' max='120' required/>
             </div>    
             <div class="mb-3">
                 <label class="form-label">Patient's HyperTension [Yes = 1 : No = 0] </label>
                 <select class="form-control" name="hypertension" placeholder="Patient has Hyper Tension?"
                     required>
                     <option class="placeholder" selected disabled value="">Hyper Tension</option>
-                    <option value=0>
+                    <option value=1>
                         Yes
                     </option>
-                    <option value=1>
+                    <option value=0>
                         No
                     </option>
                 </select>
@@ -51,10 +51,10 @@
                 <select class="form-control" name="heart_disease" placeholder="Patient has Heart Disease?"
                     required>
                     <option class="placeholder" selected disabled value="">Heart Disease</option>
-                    <option value=0>
+                    <option value=1>
                         Yes
                     </option>
-                    <option value=1>
+                    <option value=0>
                         No
                     </option>
                 </select>
@@ -129,15 +129,15 @@
             <div class="mb-3">
                 <label class="form-label">Average Glucose Level [50-300]</label>
                 <input class="form-control" type="number" name="avg_glucose_level"
-                    placeholder="Enter Patient's Avg Glucose Level" min='50' max='300'/>
+                    placeholder="Enter Patient's Avg Glucose Level" min='50' max='300' step="0.1" required/>
             </div>            
             <div class="mb-3">
                 <label class="form-label">Body Mass Index [10-100]</label>
                 <input class="form-control" type="number" name="bmi"
-                    placeholder="Enter Patient's BMI" min='10' max='100'/>
+                    placeholder="Enter Patient's BMI" min='10' max='100' step="0.1" required/>
             </div>    
             <div class="mb-3">
-                <input class="btn btn-primary" type="submit" value="Predict your Maths Score" required />
+                <input class="btn btn-primary" type="submit" value="Predict Heart Stroke Risk" />
             </div>
 
         </form>
@@ -149,9 +149,15 @@
               Prediction
             </div>
             <div class="card-body">
+        {% if context['stroke'] %}
+        <div class="alert alert-info" role="alert">
+            {{ context['stroke'] }}
+            {% if context['proba'] %}<br/>{{ context['proba'] }}{% endif %}
+        </div>
+        {% endif %}
         {% if context['heart_stroke_data'] is not none %}
         <table class="table table-striped">
-            <caption>Student Maths Score Prediction </caption>
+            <caption>Heart Stroke Prediction</caption>
             <tr>
                 <th>Input Feature</th>
                 <th>Feature Value</th>
@@ -172,9 +178,7 @@
                 <td>
                     {{ context['stroke'] }}
                 </td>
-                <td>
-                    {{context['proba']}}
-                </td>
+                <td>{{ context['proba'] }}</td>
             </tr>
         </table>
 

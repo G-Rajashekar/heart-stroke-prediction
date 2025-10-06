@@ -1,7 +1,7 @@
 from flask import Flask, request
 import sys
 import pip
-from heart_stroke.utils.util import read_yaml_file
+from heart_stroke.utils.util import read_yaml_file, write_yaml_file
 from matplotlib.style import context
 from heart_stroke.logger import logging
 import os, sys
@@ -105,46 +105,111 @@ def predict():
         PROBABILITY_KEY: None
     }
     if request.method == 'POST':
-        gender = request.form['gender']
-        age = int(request.form['age'])
-        hypertension = int(request.form['hypertension'])
-        heart_disease = int(request.form['heart_disease'])
-        ever_married = request.form['ever_married']
-        work_type = request.form['work_type']
-        Residence_type = request.form['Residence_type']
-        avg_glucose_level = float(request.form['avg_glucose_level'])
-        smoking_status = request.form['smoking_status']
-        bmi = float(request.form['bmi'])
+        try:
+            gender = request.form.get('gender')
+            age_raw = request.form.get('age')
+            hypertension_raw = request.form.get('hypertension')
+            heart_disease_raw = request.form.get('heart_disease')
+            ever_married = request.form.get('ever_married')
+            work_type = request.form.get('work_type')
+            Residence_type = request.form.get('Residence_type')
+            avg_glucose_level_raw = request.form.get('avg_glucose_level')
+            smoking_status = request.form.get('smoking_status')
+            bmi_raw = request.form.get('bmi')
 
-        heart_stroke_data = HeartStrokeData(gender= gender, 
-                                   age= age, 
-                                   hypertension= hypertension,
-                                   heart_disease= heart_disease, 
-                                   ever_married= ever_married, 
-                                   work_type= work_type, 
-                                   Residence_type= Residence_type, 
-                                   smoking_status= smoking_status,
-                                   avg_glucose_level= avg_glucose_level,
-                                   bmi = bmi
-                                   )
-        heart_stroke_df = heart_stroke_data.get_heart_stroke_input_data_frame()
-        stroke_predictor = predictor(model_dir=MODEL_DIR)
-        predicted_value = stroke_predictor.predict(X=heart_stroke_df)[0]
-        if predicted_value==1:
-            predicted_message = "The Patient has high chance of Heart Stroke"
-        else:
-            predicted_message = "The Patient has No chance of Heart Stroke"
-            
-        probaility = stroke_predictor.proba_predict(X=heart_stroke_df)[0][1]
-        probaility = f'Probaility of stroke is {probaility:.2f}%'
-        context = {
-            MODEL_DATA_KEY: heart_stroke_data.get_heart_stroke_data_as_dict(),
-            PREDICTED_CLASS_KEY: predicted_message,
-            PROBABILITY_KEY: probaility
-        }
+            # Basic validation for required fields
+            required_values = [gender, age_raw, hypertension_raw, heart_disease_raw,
+                               ever_married, work_type, Residence_type,
+                               avg_glucose_level_raw, smoking_status, bmi_raw]
+            if any(v in (None, "") for v in required_values):
+                context[PREDICTED_CLASS_KEY] = "Please fill in all fields before predicting."
+                return render_template('predict.html', context=context)
 
-        return render_template('predict.html', context=context)
+            age = int(age_raw)
+            hypertension = int(hypertension_raw)
+            heart_disease = int(heart_disease_raw)
+            avg_glucose_level = float(avg_glucose_level_raw)
+            bmi = float(bmi_raw)
+
+            # Ensure model exists and contains at least one numeric version folder
+            if not os.path.isdir(MODEL_DIR):
+                context[PREDICTED_CLASS_KEY] = "Model is not available. Please train the model first from the Train page."
+                return render_template('predict.html', context=context)
+
+            try:
+                numeric_versions = [int(name) for name in os.listdir(MODEL_DIR) if name.isdigit()]
+            except Exception:
+                numeric_versions = []
+            if len(numeric_versions) == 0:
+                context[PREDICTED_CLASS_KEY] = "No trained model found. Please run training from the Train page."
+                return render_template('predict.html', context=context)
+
+            heart_stroke_data = HeartStrokeData(
+                gender=gender,
+                age=age,
+                hypertension=hypertension,
+                heart_disease=heart_disease,
+                ever_married=ever_married,
+                work_type=work_type,
+                Residence_type=Residence_type,
+                avg_glucose_level=avg_glucose_level,
+                bmi=bmi,
+                smoking_status=smoking_status
+            )
+
+            heart_stroke_df = heart_stroke_data.get_heart_stroke_input_data_frame()
+            stroke_predictor = predictor(model_dir=MODEL_DIR)
+            # Extra guard: ensure latest model path is resolvable
+            try:
+                _ = stroke_predictor.get_latest_model_path()
+            except Exception:
+                context[PREDICTED_CLASS_KEY] = "Unable to load the trained model. Please retrain from the Train page."
+                return render_template('predict.html', context=context)
+
+            predicted_value = stroke_predictor.predict(X=heart_stroke_df)[0]
+            if predicted_value == 1:
+                predicted_message = "The Patient has high chance of Heart Stroke"
+            else:
+                predicted_message = "The Patient has No chance of Heart Stroke"
+
+            probability_val = stroke_predictor.proba_predict(X=heart_stroke_df)[0][1]
+            probability_text = f'Probability of stroke is {probability_val * 100:.2f}%'
+            context = {
+                MODEL_DATA_KEY: heart_stroke_data.get_heart_stroke_data_as_dict(),
+                PREDICTED_CLASS_KEY: predicted_message,
+                PROBABILITY_KEY: probability_text
+            }
+
+            return render_template('predict.html', context=context)
+        except Exception as e:
+            logging.exception(e)
+            context[PREDICTED_CLASS_KEY] = "An error occurred while predicting. Please verify inputs or train the model."
+            return render_template('predict.html', context=context)
     return render_template("predict.html", context=context)
+
+
+@app.route('/bmi', methods=['GET', 'POST'])
+def bmi():
+    result = None
+    error = None
+    if request.method == 'POST':
+        try:
+            height_cm = float(request.form.get('height_cm', '').strip())
+            weight_kg = float(request.form.get('weight_kg', '').strip())
+            if height_cm <= 0 or weight_kg <= 0:
+                raise ValueError("Non-positive")
+            height_m = height_cm / 100.0
+            bmi_val = weight_kg / (height_m * height_m)
+            category = (
+                "Underweight" if bmi_val < 18.5 else
+                "Normal" if bmi_val < 25 else
+                "Overweight" if bmi_val < 30 else
+                "Obese"
+            )
+            result = {"bmi": f"{bmi_val:.2f}", "category": category}
+        except Exception:
+            error = "Please enter valid height (cm) and weight (kg)."
+    return render_template('bmi.html', result=result, error=error)
 
 
 @app.route('/saved_models', defaults={'req_path': 'saved_models'})
@@ -222,4 +287,5 @@ def render_log_dir(req_path):
     return render_template('log_files.html', result=result)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
